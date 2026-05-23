@@ -8,7 +8,7 @@ const getProducts = async () => {
       statuscode: 200,
       successstatus: true,
       message: "Products fetched successfully",
-      data: result.rows.length > 0 ? result.rows[0].result || [] : [],
+      data: result.rows.length > 0 ? result.rows[0].data || [] : [],
     };
   } catch (err) {
     return {
