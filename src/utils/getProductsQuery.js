@@ -6,6 +6,7 @@ FROM (
         'inventory_id', MAX(i.inventory_id),
         'title', MAX(i.title),
         'type_name', MAX(i.type_name),
+        'ratings', MAX(i.ratings),
         'description1', MAX(i.description1),
         'description2', MAX(i.description2),
         'material', MAX(i.material),
