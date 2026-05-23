@@ -2,6 +2,7 @@ const express = require("express");
 const getQueryTypes = require("../repos/gets/getQueryTypes");
 const getSareePhotos = require("../repos/gets/getSareePhotos");
 const getProducts = require("../repos/gets/getProducts");
+const getOfferDetails = require("../repos/gets/getOfferDetails");
 const publicRotuer = express.Router();
 publicRotuer.get("/query-types", async (req, res) => {
   try {
@@ -60,6 +61,26 @@ publicRotuer.get("/test/saree-photos/:sareeId/:colorCode", async (req, res) => {
 publicRotuer.get("/products", async (req, res) => {
   try {
     const result = await getProducts();
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  } finally {
+  }
+});
+publicRotuer.get("/offers", async (req, res) => {
+  try {
+    const result = await getOfferDetails();
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",
