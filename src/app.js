@@ -28,6 +28,7 @@ app.use(
 app.use(cookieParser());
 
 /* Static files */
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* Routes */
 app.use("/ik/customer/", publicRotuer);
