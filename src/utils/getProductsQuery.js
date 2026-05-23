@@ -17,14 +17,55 @@ FROM (
         'quantity', SUM(i.quantity),
 
         'base_price',
-        ROUND(
-            MAX(i.act_price) +
+        (
             (
-                MAX(i.act_price) * MAX(m.margin_percent) / 100.0
-            ),
-            2
+                ROUND(
+                    (
+                        MAX(i.act_price) +
+                        (
+                            MAX(i.act_price) * MAX(m.margin_percent) / 100.0
+                        )
+                    ) / 100.0
+                ) * 100
+            ) - 1
         ),
-
+        'comparable_price',
+        (
+            (
+                ROUND(
+                    (
+                        (
+                            (
+                                ROUND(
+                                    (
+                                        MAX(i.act_price) +
+                                        (
+                                            MAX(i.act_price) * MAX(m.margin_percent) / 100.0
+                                        )
+                                    ) / 100.0
+                                ) * 100
+                            ) - 1
+                        )
+                        +
+                        (
+                            (
+                                (
+                                    ROUND(
+                                        (
+                                            MAX(i.act_price) +
+                                            (
+                                                MAX(i.act_price) * MAX(m.margin_percent) / 100.0
+                                            )
+                                        ) / 100.0
+                                    ) * 100
+                                ) - 1
+                            )
+                            * MAX(m.comparable_price_percent) / 100.0
+                        )
+                    ) / 100.0
+                ) * 100
+            ) - 1
+        ),
         'custom_message',
         CASE
             WHEN SUM(i.quantity) > 3 THEN 'In Stock'
