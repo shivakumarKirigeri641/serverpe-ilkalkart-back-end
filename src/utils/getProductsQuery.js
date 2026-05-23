@@ -17,6 +17,9 @@ FROM (
         'pallu', MAX(i.pallu),
         'blouse', MAX(i.blouse),
         'color', MAX(i.color),
+        'handloom', BOOL_OR(i.handloom),
+        'popularity_status', BOOL_OR(i.popularity_status),
+        'trending_status', BOOL_OR(i.trending_status),
 
         'quantity', SUM(i.quantity),
 
