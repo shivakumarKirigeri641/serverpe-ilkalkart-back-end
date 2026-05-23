@@ -1,0 +1,29 @@
+{
+  "name": "serverpe-ilkalkart-back-end",
+  "version": "1.0.0",
+  "description": "Back-end application for ilkal sarees online platform",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon src/app.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shivakumarKirigeri641/serverpe-ilkalkart-back-end.git"
+  },
+  "author": "Shivakumar Kirigeri",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shivakumarKirigeri641/serverpe-ilkalkart-back-end/issues"
+  },
+  "homepage": "https://github.com/shivakumarKirigeri641/serverpe-ilkalkart-back-end#readme",
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "nodemon": "^3.1.14",
+    "pg": "^8.21.0",
+    "validator": "^13.15.35"
+  }
+}
