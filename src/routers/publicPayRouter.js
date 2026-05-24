@@ -1,11 +1,16 @@
 const express = require("express");
+const crypto = require("crypto");
 const Razorpay = require("razorpay");
 const validateForSendOtpLogin = require("../validators/validateForSendOtpLogin");
 const validateForVerifyOtpLogin = require("../validators/validateForVerifyOtpLogin");
-const insertPaymentAndOrder = require("../repos/insertions/insertPaymentAndOrder");
+const insertPaymentAndOrder = require("../repos/insertions/insertPayment");
 const insertOtpForSubscription = require("../repos/insertions/insertOtpForSubscription");
 const verifyOtpForLogin = require("../repos/insertions/verifyOtpForLogin");
 const updateUserAndAddress = require("../repos/insertions/updateUserAndAddress");
+const getCartItems = require("../repos/gets/getCartItems");
+const getRequestDetails = require("../utils/getRequestDetails");
+const getUserAndAddressDetails = require("../repos/gets/getUserAndAddressDetails");
+const insertPayment = require("../repos/insertions/insertPayment");
 const publicPayRouter = express.Router();
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -17,8 +22,11 @@ const razorpay = new Razorpay({
 // ======================================================
 publicPayRouter.post("/create-order", async (req, res) => {
   try {
-    const { amount, currency, user_name, mobile_number, addressData, email } =
+    const { amount, currency, user_name, mobile_number, address_id, email } =
       req.body;
+    const { ipAddress, devicename } = await getRequestDetails(req);
+    const result_userwithaddresses =
+      await getUserAndAddressDetails(mobile_number);
     const result_cartitems = await getCartItems(ipAddress, devicename);
     if (!amount || amount <= 0) {
       return res.status(400).json({
@@ -30,10 +38,10 @@ publicPayRouter.post("/create-order", async (req, res) => {
     const options = {
       amount: Math.round(amount * 100), // Razorpay expects paise
       currency: currency || "INR",
-      receipt: `sr_${result.rows.length}v_${Date.now()}`,
+      receipt: `sr_${result_cartitems?.data.items.length}v_${Date.now()}`,
       notes: {
-        user_id,
-        saree_count: String(result.rows.length),
+        user_id: result_userwithaddresses.data.user_details.id,
+        saree_count: String(result_cartitems?.data.items.length),
         type: "saree_order",
       },
     };
@@ -49,7 +57,7 @@ publicPayRouter.post("/create-order", async (req, res) => {
         currency: order.currency,
         receipt: order.receipt,
         key_id: process.env.RAZORPAY_KEY_ID,
-        user_id,
+        user_id: result_userwithaddresses.data.user_details.id,
       },
     });
   } catch (err) {
@@ -71,8 +79,7 @@ publicPayRouter.post("/verify-payment", async (req, res) => {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      user_id,
-      address_id,
+      mobile_number,
       amount,
       price_per_set,
       gst_percentage,
@@ -115,14 +122,40 @@ publicPayRouter.post("/verify-payment", async (req, res) => {
       contact: payment.contact,
       paid_at: new Date(),
     };
+    //first insert payment data
+    const result_paymentInserted = await insertPayment(paymentData);
 
     //1. insert/get user details
-    //2.
-    if (!result.successstatus) {
-      return res.status(result.statuscode).json(result);
-    }
+    const result_userdetailsandaddress =
+      await getUserAndAddressDetails(mobile_number);
+    //get cart details
+    const { ipAddress, devicename } = await getRequestDetails(req);
+    const result_cartitems = await getCartItems(ipAddress, devicename);
+    //2. insert into orders
+    const order_id = generateOrderId(result_userdetailsandaddress?.data);
+    const result_orders = await insertOrders(
+      result_userdetailsandaddress?.data,
+      order_id,
+    );
+    //2. insert into sub-orders
+    const result_suborders = await insertSubOrders(
+      result_orders.rows[0],
+      result_cartitems.rows,
+    );
+    //4. insert invoices
 
+    if (!result_paymentInserted.successstatus) {
+      return res
+        .status(result_paymentInserted.statuscode)
+        .json(result_paymentInserted);
+    }
     return res.status(200).json({
+      statuscode: 200,
+      successstatus: true,
+      message: "Payment verified and order placed.",
+      data: {},
+    });
+    /*return res.status(200).json({
       statuscode: 200,
       successstatus: true,
       message: "Payment verified and order placed.",
@@ -138,7 +171,7 @@ publicPayRouter.post("/verify-payment", async (req, res) => {
         invoice: result.data.invoice,
         sticker_orders: result.data.sticker_orders,
       },
-    });
+    });*/
   } catch (err) {
     console.error("Razorpay verify QR sticker payment error:", err);
     return res.status(500).json({
@@ -250,7 +283,11 @@ publicPayRouter.post("/verify-otp", async (req, res) => {
       powered_by: "ServerPe App Solutions",
       successstatus: result.successstatus,
       message: result.message,
-      data: result?.data,
+      data: {
+        ...(result?.data || {}),
+        user_details: result_userdetailsandaddress?.data?.user_details || null,
+        user_address: result_userdetailsandaddress?.data?.user_address || null,
+      },
     });
   } catch (err) {
     return res.status(500).json({

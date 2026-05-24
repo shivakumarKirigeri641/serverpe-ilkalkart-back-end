@@ -1,13 +1,6 @@
 const { connectDB } = require("../../database/connectDB");
 const pool = connectDB();
-const insertPaymentAndOrder = async (
-  users_logger_id,
-  paymentData,
-  vehicle_rc_ids,
-  address_id,
-  price_per_set,
-  gst_percentage,
-) => {
+const insertPayment = async (paymentData) => {
   try {
     await pool.query("BEGIN");
     // 1. Insert into payments
@@ -33,29 +26,21 @@ const insertPaymentAndOrder = async (
         paymentData.status === "captured",
       ],
     );
-    const payment_id = paymentResult.rows[0].id;
-
-    // 2. order information & suborder information
-
-    // 3. Insert into invoices with QRO- prefix
-    const invoiceNumber = `SR-${Date.now()}`;
-    const invoicePath = `uploads/invoices/${invoiceNumber}.pdf`;
-
-    const invoiceResult = await pool.query(
-      `INSERT INTO invoices (
-        fkpayments, invoice_number, invoice_date, amount, gst_percentage, invoice_path
-      ) VALUES ($1,$2,CURRENT_DATE,$3,$4,$5) RETURNING *`,
-      [
-        payment_id,
-        invoiceNumber,
-        paymentData.amount,
-        gst_percentage || 0,
-        invoicePath,
-      ],
-    );
-    const invoice_id = invoiceResult.rows[0].id;
+    await pool.query(`COMMIT`);
+    return {
+      statuscode: 200,
+      successstatus: true,
+      message: "Payment details inserted successfully",
+      data: paymentResult.rows[0],
+    };
   } catch (err) {
+    await pool.query(`ROLLBACK`);
+    return {
+      statuscode: 500,
+      successstatus: false,
+      message: `Error in inserting payment data. Error: ${err.message}`,
+    };
   } finally {
   }
 };
-module.exports = insertPaymentAndOrder;
+module.exports = insertPayment;

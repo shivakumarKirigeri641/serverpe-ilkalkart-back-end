@@ -12,7 +12,7 @@ const updateUserAndAddress = async (
     let result_user = await pool.query(
       `select *from users where mobile_number=$1`,
       [mobile_number],
-    );
+    ); //ipaddress & user_agent
     if (0 === result_user.rows.length) {
       //new user
       //get user as user type
