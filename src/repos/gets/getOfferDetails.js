@@ -1,5 +1,4 @@
 const { connectDB } = require("../../database/connectDB");
-
 const pool = connectDB();
 
 const getOfferDetails = async () => {
