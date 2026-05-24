@@ -17,36 +17,36 @@ const reduceItemFromCart=async(ip_address, user_agent, combined_code, user_id = 
         let id = result_saree_element.rows[0].id;
         if(user_id){
             let result = await pool.query(`select *from cart where user_id=$1 and inventory_element_id=$2`, [user_id, id]);
-            if(result.rows.length > 1){
+            if(0 === result.rows.length){
+                return {
+                    statuscode: 404,
+                    successstatus: false,
+                    message: "Saree element not found",
+                    data: [],
+                }
+            }
+            if(result.rows[0].quantity > 1){
                 result = await pool.query(`update cart set quantity =$1 where user_id=$2 and inventory_element_id=$3`, [result.rows[0].quantity - 1, user_id, id]);
             }
             else{
-                if(0=== result.rows.length){
-                    return {
-                        statuscode: 404,
-                        successstatus: false,
-                        message: "Saree element not found",
-                        data: [],
-                    }
-                }
-             result = await pool.query(`delete from cart where user_id=$1 and inventory_element_id=$2`, [user_id, id]);   
+                result = await pool.query(`delete from cart where user_id=$1 and inventory_element_id=$2`, [user_id, id]);
             }
         }
         else{
             let result = await pool.query(`select *from cart where ip_address = $1 and user_agent=$2 and inventory_element_id=$3`, [ip_address, user_agent, id]);
-            if(result.rows.length > 1){
+            if(0 === result.rows.length){
+                return {
+                    statuscode: 404,
+                    successstatus: false,
+                    message: "Saree element not found",
+                    data: [],
+                }
+            }
+            if(result.rows[0].quantity > 1){
                 result = await pool.query(`update cart set quantity =$1 where ip_address=$2 and user_agent=$3 and inventory_element_id=$4`, [result.rows[0].quantity - 1, ip_address, user_agent, id]);
             }
             else{
-                if(0=== result.rows.length){
-                    return {
-                        statuscode: 404,
-                        successstatus: false,
-                        message: "Saree element not found",
-                        data: [],
-                    }
-                }
-             result = await pool.query(`delete from cart where ip_address=$1 and user_agent=$2 and inventory_element_id=$3`, [ip_address, user_agent, id]);   
+                result = await pool.query(`delete from cart where ip_address=$1 and user_agent=$2 and inventory_element_id=$3`, [ip_address, user_agent, id]);
             }
         }
         await pool.query('COMMIT');
