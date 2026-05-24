@@ -1,11 +1,12 @@
 const express = require("express");
 const path = require("path");
 const cors = require("cors");
-const publicRotuer = require("./routers/publicRouter");
+const publicRouter = require("./routers/publicRouter");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const { connectDB } = require("./database/connectDB");
 const publicCartModificationsRouter = require("./routers/publicCartModificationsRouter");
+const publicPayRouter = require("./routers/publicPayRouter");
 const PORT = process.env.PORT;
 const app = express();
 
@@ -32,8 +33,9 @@ app.use(cookieParser());
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* Routes */
-app.use("/ik/customer/", publicRotuer);
+app.use("/ik/customer/", publicRouter);
 app.use("/ik/customer/", publicCartModificationsRouter);
+app.use("/ik/customer/", publicPayRouter);
 /* DB connections */
 connectDB();
 
