@@ -1,4 +1,4 @@
-const validateForAddToCart = (req) => {
+const validateForItemInCart = (req) => {
     //validate combined_code
     const { combined_code } = req.body;
     if (!combined_code) {
@@ -21,4 +21,4 @@ const validateForAddToCart = (req) => {
         message: "Combined code validated successfully",
     }
 };
-module.exports = validateForAddToCart;
+module.exports = validateForItemInCart;

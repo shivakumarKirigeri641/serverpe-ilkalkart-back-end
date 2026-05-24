@@ -161,7 +161,10 @@ const getCartProductListQuery=(user_id=null)=>{
 )
 
 SELECT json_build_object(
-    'items', json_agg(row_data),
+    'items', COALESCE(
+        json_agg(row_data),
+        '[]'::json
+    ),
 
     'grand_total_price', SUM(total_price)
 
@@ -332,7 +335,10 @@ FROM cart_data;`
 )
 
 SELECT json_build_object(
-    'items', json_agg(row_data),
+    'items', COALESCE(
+        json_agg(row_data),
+        '[]'::json
+    ),
 
     'grand_total_price', SUM(total_price)
 

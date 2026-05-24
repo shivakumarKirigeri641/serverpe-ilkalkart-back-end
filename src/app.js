@@ -5,6 +5,7 @@ const publicRotuer = require("./routers/publicRouter");
 const cookieParser = require("cookie-parser");
 require("dotenv").config();
 const { connectDB } = require("./database/connectDB");
+const publicCartModificationsRouter = require("./routers/publicCartModificationsRouter");
 const PORT = process.env.PORT;
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 /* Routes */
 app.use("/ik/customer/", publicRotuer);
+app.use("/ik/customer/", publicCartModificationsRouter);
 /* DB connections */
 connectDB();
 
