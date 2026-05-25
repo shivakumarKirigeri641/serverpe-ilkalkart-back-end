@@ -1,6 +1,9 @@
 const { connectDB } = require("../../database/connectDB");
 const pool = connectDB();
-const getUserAndAddressDetails = async (mobile_number) => {
+const getUserAndAddressDetails = async (
+  mobile_number,
+  need_default = false,
+) => {
   let result_user_addresses = [];
   let result_user = await pool.query(
     `select *from users where mobile_number=$1`,
@@ -8,7 +11,9 @@ const getUserAndAddressDetails = async (mobile_number) => {
   );
   if (0 < result_user.rows.length) {
     result_user_addresses = await pool.query(
-      `select *from addresses where user_id=$1`,
+      true === need_default
+        ? `select *from addresses where user_id=$1 and is_active=true and is_default=true`
+        : `select *from addresses where user_id=$1 and is_active=true`,
       [result_user.rows[0].id],
     );
   }

@@ -3,14 +3,19 @@ const crypto = require("crypto");
 const Razorpay = require("razorpay");
 const validateForSendOtpLogin = require("../validators/validateForSendOtpLogin");
 const validateForVerifyOtpLogin = require("../validators/validateForVerifyOtpLogin");
-const insertPaymentAndOrder = require("../repos/insertions/insertPayment");
+const insertPaymentAndOrder = require("../repos/insertions/insertPaymentOrdersAndInvoices");
+const insertPaymentFailure = require("../repos/insertions/insertPaymentFailure");
 const insertOtpForSubscription = require("../repos/insertions/insertOtpForSubscription");
 const verifyOtpForLogin = require("../repos/insertions/verifyOtpForLogin");
 const updateUserAndAddress = require("../repos/insertions/updateUserAndAddress");
 const getCartItems = require("../repos/gets/getCartItems");
 const getRequestDetails = require("../utils/getRequestDetails");
 const getUserAndAddressDetails = require("../repos/gets/getUserAndAddressDetails");
-const insertPayment = require("../repos/insertions/insertPayment");
+const insertPayment = require("../repos/insertions/insertPaymentOrdersAndInvoices");
+const generateOrderId = require("../repos/gets/generateOrderId");
+const generateInvoiceId = require("../repos/gets/generateInvoiceId");
+const insertOrders = require("../repos/insertions/insertOrders");
+const insertPaymentOrdersAndInvoices = require("../repos/insertions/insertPaymentOrdersAndInvoices");
 const publicPayRouter = express.Router();
 // Initialize Razorpay
 const razorpay = new Razorpay({
@@ -123,55 +128,32 @@ publicPayRouter.post("/verify-payment", async (req, res) => {
       paid_at: new Date(),
     };
     //first insert payment data
-    const result_paymentInserted = await insertPayment(paymentData);
-
-    //1. insert/get user details
-    const result_userdetailsandaddress =
-      await getUserAndAddressDetails(mobile_number);
-    //get cart details
     const { ipAddress, devicename } = await getRequestDetails(req);
+    const result_userdetailsandaddress = await getUserAndAddressDetails(
+      mobile_number,
+      true,
+    );
     const result_cartitems = await getCartItems(ipAddress, devicename);
-    //2. insert into orders
-    const order_id = generateOrderId(result_userdetailsandaddress?.data);
-    const result_orders = await insertOrders(
+    const result_masterdetails = await insertPaymentOrdersAndInvoices(
+      paymentData,
+      ipAddress,
+      devicename,
+      result_cartitems,
       result_userdetailsandaddress?.data,
-      order_id,
     );
-    //2. insert into sub-orders
-    const result_suborders = await insertSubOrders(
-      result_orders.rows[0],
-      result_cartitems.rows,
-    );
-    //4. insert invoices
-
-    if (!result_paymentInserted.successstatus) {
-      return res
-        .status(result_paymentInserted.statuscode)
-        .json(result_paymentInserted);
+    if (!result_masterdetails?.successstatus) {
+      return res.status(result_masterdetails?.statuscode || 500).json({
+        statuscode: result_masterdetails?.statuscode || 500,
+        successstatus: false,
+        message: result_masterdetails?.message || "Failed to persist order.",
+      });
     }
     return res.status(200).json({
       statuscode: 200,
       successstatus: true,
       message: "Payment verified and order placed.",
-      data: {},
+      data: result_masterdetails.data,
     });
-    /*return res.status(200).json({
-      statuscode: 200,
-      successstatus: true,
-      message: "Payment verified and order placed.",
-      data: {
-        order_id: razorpay_order_id,
-        payment_id: razorpay_payment_id,
-        amount: payment.amount / 100,
-        currency: payment.currency,
-        method: payment.method,
-        status: payment.status,
-        paid_at: new Date().toISOString(),
-        payment: result.data.payment,
-        invoice: result.data.invoice,
-        sticker_orders: result.data.sticker_orders,
-      },
-    });*/
   } catch (err) {
     console.error("Razorpay verify QR sticker payment error:", err);
     return res.status(500).json({
@@ -182,6 +164,59 @@ publicPayRouter.post("/verify-payment", async (req, res) => {
     });
   }
 });
+// ======================================================
+//    RAZORPAY - PAYMENT FAILURE / CANCEL / ABANDON
+// ======================================================
+// Accepts both application/json (normal failure/cancel) and text/plain
+// (used by navigator.sendBeacon when the browser tab is being closed).
+publicPayRouter.post(
+  "/payment-failure",
+  express.text({ type: ["text/plain", "application/octet-stream"] }),
+  async (req, res) => {
+    try {
+      let payload = req.body;
+      if (typeof payload === "string" && payload.length > 0) {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          payload = {};
+        }
+      }
+      payload = payload || {};
+
+      const { ipAddress, devicename } = await getRequestDetails(req);
+      const result_cartitems = await getCartItems(ipAddress, devicename);
+
+      const failureData = {
+        razorpay_order_id: payload.razorpay_order_id || null,
+        razorpay_payment_id: payload.razorpay_payment_id || null,
+        amount: payload.amount || 0,
+        currency: payload.currency || "INR",
+        method: payload.method || null,
+        status: payload.status || "failed",
+        email: payload.email || null,
+        contact: payload.mobile_number || payload.contact || null,
+        reason: payload.reason || "unknown",
+        source: payload.source || "client",
+      };
+
+      const result = await insertPaymentFailure(failureData, result_cartitems);
+      return res.status(result.statuscode).json({
+        statuscode: result.statuscode,
+        successstatus: result.successstatus,
+        message: result.message,
+        data: result.data || null,
+      });
+    } catch (err) {
+      console.error("Razorpay payment-failure error:", err);
+      return res.status(500).json({
+        statuscode: 500,
+        successstatus: false,
+        message: err.message,
+      });
+    }
+  },
+);
 // ======================================================
 //                USER-SEND-OTP
 // ======================================================

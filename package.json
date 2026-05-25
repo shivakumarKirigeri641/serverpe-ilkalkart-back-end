@@ -23,6 +23,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "nodemon": "^3.1.14",
     "pg": "^8.21.0",
     "razorpay": "^2.9.6",
