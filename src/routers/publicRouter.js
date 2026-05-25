@@ -1,13 +1,52 @@
 const express = require("express");
+const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const getQueryTypes = require("../repos/gets/getQueryTypes");
+const getFeedbacks = require("../repos/gets/getFeedbacks");
 const validateForMobileNumber = require("../validators/validateForMobileNumber");
 const validateForTrackMySaree = require("../validators/validateForTrackMySaree");
+const validateForFeedback = require("../validators/validateForFeedback");
+const validateForContactMe = require("../validators/validateForContactMe");
 const getProducts = require("../repos/gets/getProducts");
 const getOfferDetails = require("../repos/gets/getOfferDetails");
 const getGSTValue = require("../repos/gets/getGSTValue");
 const getStatesAndUnions = require("../repos/gets/getStatesAndUnions");
 const getAddresses = require("../repos/gets/getAddresses");
 const trackOrder = require("../repos/gets/trackOrder");
+const postFeedback = require("../repos/insertions/postFeedback");
+const postContactMe = require("../repos/insertions/postContactMe");
+
+const FEEDBACK_PICS_DIR = path.join(
+  __dirname,
+  "..",
+  "uploads",
+  "feedback_pics",
+);
+if (!fs.existsSync(FEEDBACK_PICS_DIR)) {
+  fs.mkdirSync(FEEDBACK_PICS_DIR, { recursive: true });
+}
+const feedbackStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, FEEDBACK_PICS_DIR),
+  filename: (_req, file, cb) => {
+    const ext = path
+      .extname(file.originalname || "")
+      .toLowerCase()
+      .slice(0, 8);
+    const safeExt = /^\.(jpg|jpeg|png|webp|gif)$/.test(ext) ? ext : ".jpg";
+    cb(null, `fb_${Date.now()}_${Math.round(Math.random() * 1e9)}${safeExt}`);
+  },
+});
+const feedbackUpload = multer({
+  storage: feedbackStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!file) return cb(null, true);
+    if (/^image\/(jpe?g|png|webp|gif)$/.test(file.mimetype))
+      return cb(null, true);
+    cb(new Error("Only JPG/PNG/WEBP/GIF images are allowed"));
+  },
+});
 
 const publicRotuer = express.Router();
 publicRotuer.get("/query-types", async (req, res) => {
@@ -181,6 +220,120 @@ publicRotuer.post("/track-my-saree", async (req, res) => {
       message: `Internal server error. Error:${err.message}`,
     });
   } finally {
+  }
+});
+publicRotuer.get("/feedbacks", async (req, res) => {
+  try {
+    const result = await getFeedbacks();
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  } finally {
+  }
+});
+publicRotuer.post(
+  "/feedback",
+  (req, res, next) => {
+    feedbackUpload.single("pic")(req, res, (err) => {
+      if (err) {
+        return res.status(400).json({
+          statuscode: 400,
+          powered_by: "ServerPe App Solutions",
+          successstatus: false,
+          message: err.message || "Image upload failed",
+        });
+      }
+      next();
+    });
+  },
+  async (req, res) => {
+    const cleanupUploadedFile = () => {
+      if (req.file?.path) {
+        fs.unlink(req.file.path, () => {});
+      }
+    };
+    try {
+      const validation = validateForFeedback(req);
+      if (false === validation.successstatus) {
+        cleanupUploadedFile();
+        return res.status(validation.statuscode).json({
+          statuscode: validation.statuscode,
+          powered_by: "ServerPe App Solutions",
+          successstatus: validation.successstatus,
+          message: validation.message,
+        });
+      }
+      const picPath = req.file
+        ? `uploads/feedback_pics/${req.file.filename}`
+        : null;
+      const result = await postFeedback(
+        req.body.user_name,
+        Number(req.body.rating),
+        req.body.message || null,
+        picPath,
+      );
+      if (!result.successstatus) cleanupUploadedFile();
+      return res.status(result.statuscode).json({
+        statuscode: result.statuscode,
+        powered_by: "ServerPe App Solutions",
+        successstatus: result.successstatus,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (err) {
+      cleanupUploadedFile();
+      return res.status(500).json({
+        statuscode: 500,
+        powered_by: "ServerPe App Solutions",
+        successstatus: false,
+        message: `Internal server error. Error:${err.message}`,
+      });
+    }
+  },
+);
+publicRotuer.post("/contact-me", async (req, res) => {
+  try {
+    const validation = validateForContactMe(req);
+    if (false === validation.successstatus) {
+      return res.status(validation.statuscode).json({
+        statuscode: validation.statuscode,
+        powered_by: "ServerPe App Solutions",
+        successstatus: validation.successstatus,
+        message: validation.message,
+      });
+    }
+    const result = await postContactMe(
+      req.body.user_name,
+      req.body.mobile_number,
+      req.body.query_type_name,
+      req.body.message,
+      req.body.email,
+    );
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
   }
 });
 module.exports = publicRotuer;
