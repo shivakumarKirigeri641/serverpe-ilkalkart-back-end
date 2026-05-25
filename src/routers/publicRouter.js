@@ -1,11 +1,13 @@
 const express = require("express");
 const getQueryTypes = require("../repos/gets/getQueryTypes");
 const validateForMobileNumber = require("../validators/validateForMobileNumber");
+const validateForTrackMySaree = require("../validators/validateForTrackMySaree");
 const getProducts = require("../repos/gets/getProducts");
 const getOfferDetails = require("../repos/gets/getOfferDetails");
 const getGSTValue = require("../repos/gets/getGSTValue");
 const getStatesAndUnions = require("../repos/gets/getStatesAndUnions");
 const getAddresses = require("../repos/gets/getAddresses");
+const trackOrder = require("../repos/gets/trackOrder");
 
 const publicRotuer = express.Router();
 publicRotuer.get("/query-types", async (req, res) => {
@@ -134,6 +136,36 @@ publicRotuer.post("/addresses", async (req, res) => {
       });
     }
     result = await getAddresses(req.body.mobile_number);
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  } finally {
+  }
+});
+publicRotuer.post("/track-my-saree", async (req, res) => {
+  try {
+    let result = validateForTrackMySaree(req);
+    if (false === result.successstatus) {
+      return res.status(result.statuscode).json({
+        statuscode: result.statuscode,
+        powered_by: "ServerPe App Solutions",
+        successstatus: result.successstatus,
+        message: result.message,
+        data: result.data,
+      });
+    }
+    result = await trackOrder(req.body.order_id);
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",
