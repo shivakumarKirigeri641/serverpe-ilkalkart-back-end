@@ -89,6 +89,7 @@ const generateInvoicePdf = (
   userdetailsandaddress,
   result_cartitems,
   gst_details,
+  offer_details,
 ) => {
   try {
     const user = userdetailsandaddress?.user_details || {};
@@ -97,6 +98,11 @@ const generateInvoicePdf = (
     const gstPercent = Number(gst_details.gst_percent);
     const gstRate = gstPercent / 100;
 
+    const offer =
+      offer_details && !Array.isArray(offer_details) ? offer_details : null;
+    const offerPercent = Number(offer?.offer_percent_value) || 0;
+    const offerTitle = offer?.title || null;
+
     const items = (result_cartitems?.data?.items || []).map((det) => ({
       name: det.title || det.type_name || "Saree",
       color: det.color || "",
@@ -104,10 +110,15 @@ const generateInvoicePdf = (
       price: Number(det.base_price) || 0,
     }));
 
-    let subtotal = 0;
+    let grossSubtotal = 0;
     items.forEach((it) => {
-      subtotal += it.qty * it.price;
+      grossSubtotal += it.qty * it.price;
     });
+    const offerDiscount =
+      offerPercent > 0
+        ? +((grossSubtotal * offerPercent) / 100).toFixed(2)
+        : 0;
+    const subtotal = +(grossSubtotal - offerDiscount).toFixed(2);
     const baseAmount =
       gstRate > 0 ? +(subtotal / (1 + gstRate)).toFixed(2) : subtotal;
     const gstAmount = +(subtotal - baseAmount).toFixed(2);
@@ -301,7 +312,15 @@ const generateInvoicePdf = (
 
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.6);
-    doc.roundedRect(boxX, ty - 12, boxW, 120, 6, 6);
+    const boxH = offerPercent > 0 ? 150 : 120;
+    doc.roundedRect(boxX, ty - 12, boxW, boxH, 6, 6);
+    if (offerPercent > 0) {
+      row("Gross subtotal", fmtINR(grossSubtotal));
+      row(
+        `Offer${offerTitle ? ` — ${offerTitle}` : ""} (${offerPercent}%)`,
+        `- ${fmtINR(offerDiscount)}`,
+      );
+    }
     row("Taxable value", fmtINR(baseAmount));
     row(`CGST (${halfPercent}%)`, fmtINR(gstAmount / 2));
     row(`SGST (${halfPercent}%)`, fmtINR(gstAmount / 2));

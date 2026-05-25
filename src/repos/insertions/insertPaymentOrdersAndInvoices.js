@@ -66,12 +66,16 @@ const insertPaymentOrdersAndInvoices = async (
     const gst_details = await pool.query(
       `select *from gst_percents where is_active=true;`,
     );
+    const offer_details = await pool.query(
+      `select *from offers where is_active=true;`,
+    );
     const invoice_path = generateInvoicePdf(
       invoice_id,
       platform_details.rows[0],
       userdetailsandaddress,
       result_cartitems,
       gst_details.rows[0],
+      offer_details.rows.length > 0 ? offer_details.rows[0] : [],
     );
     const result_invoices = await pool.query(
       `insert into invoices (order_id, payment_id, invoice_id, invoice_path) values ($1,$2,$3,$4) returning *;`,
@@ -103,6 +107,7 @@ const insertPaymentOrdersAndInvoices = async (
         cart_items: result_cartitems,
         platform_details: platform_details.rows[0],
         gst_details: gst_details.rows[0],
+        offer_details: offer_details.rows.length > 0 ? offer_details.rows[0] : null,
         invoice_details: result_invoices.rows[0],
         user_details: userdetailsandaddress?.user_details || null,
         user_address: userdetailsandaddress?.user_addresses?.[0] || null,
