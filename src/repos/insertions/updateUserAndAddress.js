@@ -5,6 +5,8 @@ const updateUserAndAddress = async (
   mobile_number,
   email,
   addressData,
+  ipAddress,
+  user_agent,
 ) => {
   try {
     await pool.query("BEGIN");
@@ -94,6 +96,11 @@ WHERE id = $12;`,
         ],
       );
     }
+    //upate cart with usr_id
+    await pool.query(
+      `update cart set user_id = $1 where ip_address=$2 and user_agent=$3`,
+      [result_user.rows[0].id, ipAddress, user_agent],
+    );
     await pool.query("COMMIT");
     return {
       statuscode: 201,

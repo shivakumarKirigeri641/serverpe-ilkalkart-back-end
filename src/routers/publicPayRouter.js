@@ -33,6 +33,7 @@ publicPayRouter.post("/create-order", async (req, res) => {
     const { ipAddress, devicename } = await getRequestDetails(req);
     const result_userwithaddresses =
       await getUserAndAddressDetails(mobile_number);
+    //now update cart with user_id
     const result_cartitems = await getCartItems(ipAddress, devicename);
     if (!amount || amount <= 0) {
       return res.status(400).json({
@@ -77,7 +78,9 @@ publicPayRouter.post("/create-order", async (req, res) => {
           },
           order.id,
         );
-      } catch (_) { /* best-effort cleanup */ }
+      } catch (_) {
+        /* best-effort cleanup */
+      }
       return res.status(reservation.statuscode).json({
         statuscode: reservation.statuscode,
         successstatus: false,
@@ -290,12 +293,7 @@ publicPayRouter.post("/send-otp", async (req, res) => {
 // ======================================================
 publicPayRouter.post("/verify-otp", async (req, res) => {
   try {
-    const ipAddress =
-      (req.headers["x-forwarded-for"] &&
-        req.headers["x-forwarded-for"].split(",")[0]) ||
-      req.socket?.remoteAddress ||
-      null;
-    const user_agent = req.headers["user-agent"];
+    const { ipAddress, devicename } = await getRequestDetails(req);
     let result = validateForVerifyOtpLogin(req); //address details, user details included here.
     if (false === result.successstatus) {
       return res.status(result.statuscode).json({
@@ -311,7 +309,7 @@ publicPayRouter.post("/verify-otp", async (req, res) => {
       req.body.mobile_number,
       req.body.otp,
       ipAddress,
-      user_agent,
+      devicename,
     );
     if (false === result.successstatus) {
       return res.status(result.statuscode).json({
@@ -346,6 +344,8 @@ publicPayRouter.post("/verify-otp", async (req, res) => {
       req.body.mobile_number,
       req.body.email,
       req.body.address,
+      ipAddress,
+      devicename,
     );
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
