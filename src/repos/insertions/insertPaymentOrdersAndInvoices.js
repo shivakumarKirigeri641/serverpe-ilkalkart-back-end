@@ -82,6 +82,16 @@ const insertPaymentOrdersAndInvoices = async (
         invoice_path,
       ],
     );
+    // Finalise the reservation snapshot so the sweeper / failure API
+    // won't try to revert stock for an order that actually succeeded.
+    await pool.query(
+      `UPDATE inventory_reservations
+          SET status = 'consumed',
+              updated_at = CURRENT_TIMESTAMP
+        WHERE razorpay_order_id = $1
+          AND status = 'pending'`,
+      [paymentData.razorpay_order_id],
+    );
     await pool.query(`COMMIT`);
     return {
       statuscode: 200,

@@ -7,6 +7,7 @@ require("dotenv").config();
 const { connectDB } = require("./database/connectDB");
 const publicCartModificationsRouter = require("./routers/publicCartModificationsRouter");
 const publicPayRouter = require("./routers/publicPayRouter");
+const sweepStaleReservations = require("./repos/jobs/sweepStaleReservations");
 const PORT = process.env.PORT;
 const app = express();
 
@@ -38,6 +39,12 @@ app.use("/ik/customer/", publicCartModificationsRouter);
 app.use("/ik/customer/", publicPayRouter);
 /* DB connections */
 connectDB();
+
+const RESERVATION_SWEEP_INTERVAL_MS =
+  Number(process.env.RESERVATION_SWEEP_INTERVAL_MIN || 5) * 60 * 1000;
+setInterval(() => {
+  sweepStaleReservations().catch(() => {});
+}, RESERVATION_SWEEP_INTERVAL_MS);
 
 app.listen(PORT, () => {
   console.log(`Server is listening on port ${PORT}`);

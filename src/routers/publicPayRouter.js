@@ -5,6 +5,7 @@ const validateForSendOtpLogin = require("../validators/validateForSendOtpLogin")
 const validateForVerifyOtpLogin = require("../validators/validateForVerifyOtpLogin");
 const insertPaymentAndOrder = require("../repos/insertions/insertPaymentOrdersAndInvoices");
 const insertPaymentFailure = require("../repos/insertions/insertPaymentFailure");
+const reserveInventoryForOrder = require("../repos/insertions/reserveInventoryForOrder");
 const insertOtpForSubscription = require("../repos/insertions/insertOtpForSubscription");
 const verifyOtpForLogin = require("../repos/insertions/verifyOtpForLogin");
 const updateUserAndAddress = require("../repos/insertions/updateUserAndAddress");
@@ -50,8 +51,41 @@ publicPayRouter.post("/create-order", async (req, res) => {
         type: "saree_order",
       },
     };
-    //check for out-of-stock for any saree details, if out of stock throw the error. do not proceed with payment
     const order = await razorpay.orders.create(options);
+
+    const userId = result_userwithaddresses?.data?.user_details?.id || null;
+    const reservation = await reserveInventoryForOrder(
+      order.id,
+      ipAddress,
+      devicename,
+      userId,
+    );
+    if (!reservation.successstatus) {
+      try {
+        await insertPaymentFailure(
+          {
+            razorpay_order_id: order.id,
+            amount,
+            currency: currency || "INR",
+            status: "reservation_failed",
+            contact: mobile_number || null,
+            reason:
+              reservation.statuscode === 409
+                ? "out_of_stock"
+                : "reservation_error",
+            source: "server",
+          },
+          order.id,
+        );
+      } catch (_) { /* best-effort cleanup */ }
+      return res.status(reservation.statuscode).json({
+        statuscode: reservation.statuscode,
+        successstatus: false,
+        message: reservation.message,
+        data: reservation.data || null,
+      });
+    }
+
     return res.status(200).json({
       statuscode: 200,
       successstatus: true,
@@ -184,9 +218,6 @@ publicPayRouter.post(
       }
       payload = payload || {};
 
-      const { ipAddress, devicename } = await getRequestDetails(req);
-      const result_cartitems = await getCartItems(ipAddress, devicename);
-
       const failureData = {
         razorpay_order_id: payload.razorpay_order_id || null,
         razorpay_payment_id: payload.razorpay_payment_id || null,
@@ -200,7 +231,10 @@ publicPayRouter.post(
         source: payload.source || "client",
       };
 
-      const result = await insertPaymentFailure(failureData, result_cartitems);
+      const result = await insertPaymentFailure(
+        failureData,
+        failureData.razorpay_order_id,
+      );
       return res.status(result.statuscode).json({
         statuscode: result.statuscode,
         successstatus: result.successstatus,

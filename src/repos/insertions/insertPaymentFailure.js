@@ -3,20 +3,24 @@ const pool = connectDB();
 
 /**
  * Records a failed/cancelled payment attempt and reverts the inventory
- * quantity for every saree the user had in cart at the time of payment.
+ * quantity for every saree that was reserved at /create-order time.
  *
- * Trigger points (front-end): Razorpay modal dismiss, payment.failed event,
- * verify-payment error, browser tab/window close while paying.
+ * Reverts read from inventory_reservations (snapshot keyed by razorpay
+ * order id) — NOT from the live cart, since the user may have changed
+ * the cart between create-order and the failure event.
+ *
+ * Trigger points (front-end): Razorpay modal dismiss, payment.failed,
+ * verify-payment error, browser tab/window close while paying. Also
+ * called server-side when create-order itself rolls back, and by the
+ * stale-reservation sweeper.
  */
-const insertPaymentFailure = async (
-  failureData,
-  result_cartitems,
-) => {
+const insertPaymentFailure = async (failureData, razorpay_order_id) => {
+  const orderId = razorpay_order_id || failureData?.razorpay_order_id || null;
+  const client = await pool.connect();
   try {
-    await pool.query("BEGIN");
+    await client.query("BEGIN");
 
-    // 1) Audit row in payments (status reflects reason).
-    await pool.query(
+    await client.query(
       `INSERT INTO payments (
         payment_id, order_id, entity, amount, currency,
         method, status, email, contact, notes, captured
@@ -24,8 +28,8 @@ const insertPaymentFailure = async (
       ON CONFLICT (payment_id) DO NOTHING`,
       [
         failureData.razorpay_payment_id ||
-          `FAIL-${failureData.razorpay_order_id}-${Date.now()}`,
-        failureData.razorpay_order_id || null,
+          `FAIL-${orderId || "noorder"}-${Date.now()}`,
+        orderId,
         "payment",
         Math.round(Number(failureData.amount || 0) * 100),
         failureData.currency || "INR",
@@ -42,34 +46,52 @@ const insertPaymentFailure = async (
       ],
     );
 
-    // 2) Revert inventory quantities for whatever was in cart.
-    const items = result_cartitems?.data?.items || [];
-    for (const it of items) {
-      const inventoryId = it.id || it.inventory_id;
-      const qty = Number(it.quantity) || 0;
-      if (!inventoryId || qty <= 0) continue;
-      await pool.query(
-        `UPDATE inventory_elements
-         SET quantity = quantity + $1
-         WHERE id = $2`,
-        [qty, inventoryId],
+    let revertedLines = 0;
+    if (orderId) {
+      const pending = await client.query(
+        `SELECT id, inventory_element_id, quantity
+           FROM inventory_reservations
+          WHERE razorpay_order_id = $1
+            AND status = 'pending'
+          FOR UPDATE`,
+        [orderId],
       );
+
+      for (const r of pending.rows) {
+        await client.query(
+          `UPDATE inventory_elements
+              SET quantity = quantity + $1
+            WHERE id = $2`,
+          [r.quantity, r.inventory_element_id],
+        );
+        await client.query(
+          `UPDATE inventory_reservations
+              SET status = 'reverted',
+                  reason = $2,
+                  updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1`,
+          [r.id, failureData.reason || "unknown"],
+        );
+        revertedLines += 1;
+      }
     }
 
-    await pool.query("COMMIT");
+    await client.query("COMMIT");
     return {
       statuscode: 200,
       successstatus: true,
       message: "Payment failure recorded and inventory reverted.",
-      data: { reverted_items: items.length },
+      data: { reverted_lines: revertedLines },
     };
   } catch (err) {
-    await pool.query("ROLLBACK");
+    await client.query("ROLLBACK");
     return {
       statuscode: 500,
       successstatus: false,
       message: `Error handling payment failure. Error: ${err.message}`,
     };
+  } finally {
+    client.release();
   }
 };
 

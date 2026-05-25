@@ -116,7 +116,25 @@ const generateInvoicePdf = (
 
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
     const M = 40;
+
+    // ---------- Watermark (drawn first so content sits on top) ----------
+    const watermarkText = platform.platform_name || "Ilkal Kart";
+    if (typeof doc.GState === "function") {
+      doc.setGState(new doc.GState({ opacity: 0.08 }));
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(90);
+    doc.setTextColor(...MAROON);
+    doc.text(watermarkText, W / 2, H / 2, {
+      align: "center",
+      baseline: "middle",
+      angle: -30,
+    });
+    if (typeof doc.GState === "function") {
+      doc.setGState(new doc.GState({ opacity: 1 }));
+    }
 
     // ---------- Header band ----------
     doc.setFillColor(...MAROON);
@@ -160,12 +178,14 @@ const generateInvoicePdf = (
     doc.setDrawColor(...GOLD);
     doc.line(M, y + 4, M + 160, y + 4);
     y += 18;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(user.user_name || "Customer", M, y);
+    if (user.user_name) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(String(user.user_name), M, y);
+      y += 14;
+    }
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    y += 14;
     const addrLines = [
       [addr.house_flat_no, addr.address_line1].filter(Boolean).join(", "),
       addr.address_line2,
