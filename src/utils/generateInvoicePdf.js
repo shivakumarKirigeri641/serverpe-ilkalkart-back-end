@@ -137,7 +137,7 @@ const generateInvoicePdf = (
       58,
     );
     doc.text(
-      `${platform.email || "care@ilkalkart.com"}  |  ${platform.mobile_number || "+91 90000 00000"}  |  www.ilkalkart.com`,
+      `${platform.email || "care@ilkalkart.com"}  |  ${platform.mobile_number || "+91 90000 00000"}  |  ${platform.website || "www.ilkalkart.com"}`,
       M,
       72,
     );
@@ -193,6 +193,7 @@ const generateInvoicePdf = (
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     y2 += 14;
+    const sellerColWidth = 220;
     const sellerLines = [
       platform.founder_name
         ? `Founder & Curator: ${platform.founder_name}`
@@ -202,8 +203,11 @@ const generateInvoicePdf = (
       platform.gstin ? `GSTIN: ${platform.gstin}` : null,
     ].filter(Boolean);
     sellerLines.forEach((l) => {
-      doc.text(String(l), W - M - 220, y2);
-      y2 += 13;
+      const wrapped = doc.splitTextToSize(String(l), sellerColWidth);
+      wrapped.forEach((wl) => {
+        doc.text(wl, W - M - sellerColWidth, y2);
+        y2 += 13;
+      });
     });
 
     // ---------- Items table ----------
@@ -277,14 +281,15 @@ const generateInvoicePdf = (
 
     doc.setDrawColor(...GOLD);
     doc.setLineWidth(0.6);
-    doc.roundedRect(boxX, ty - 12, boxW, 105, 6, 6);
+    doc.roundedRect(boxX, ty - 12, boxW, 120, 6, 6);
     row("Taxable value", fmtINR(baseAmount));
     row(`CGST (${halfPercent}%)`, fmtINR(gstAmount / 2));
     row(`SGST (${halfPercent}%)`, fmtINR(gstAmount / 2));
     row("Sub-total", fmtINR(subtotal));
     row("Shipping", shipping ? fmtINR(shipping) : "FREE");
     doc.setDrawColor(...GOLD);
-    doc.line(boxX + 8, ty - 6, boxX + boxW - 8, ty - 6);
+    doc.line(boxX + 8, ty - 2, boxX + boxW - 8, ty - 2);
+    ty += 10;
     row("Total Paid", fmtINR(total), { bold: true });
 
     // amount in words
