@@ -1,4 +1,5 @@
 const { connectDB } = require("../../database/connectDB");
+const { v4: uuidv4 } = require("uuid");
 const generateInvoiceId = require("../gets/generateInvoiceId");
 const generateOrderId = require("../gets/generateOrderId");
 const generateInvoicePdf = require("../../utils/generateInvoicePdf");
@@ -48,13 +49,15 @@ const insertPaymentOrdersAndInvoices = async (
     );
     //3. insert suborders & update quantity
     for (let i = 0; i < result_cartitems?.data.items.length; i++) {
+      const qrcode = uuidv4();
       const result_suborders = await pool.query(
-        `insert into suborders (order_id, inventory_element_data_id, quantity, base_price) values ($1,$2,$3,$4);`,
+        `insert into suborders (order_id, inventory_element_data_id, quantity, base_price, secret_qrcode) values ($1,$2,$3,$4,$5);`,
         [
           result_orders.rows[0].id,
           result_cartitems?.data.items[i].inventory_id,
           result_cartitems?.data.items[i].quantity,
           result_cartitems?.data.items[i].base_price,
+          qrcode,
         ],
       );
     }
@@ -107,7 +110,8 @@ const insertPaymentOrdersAndInvoices = async (
         cart_items: result_cartitems,
         platform_details: platform_details.rows[0],
         gst_details: gst_details.rows[0],
-        offer_details: offer_details.rows.length > 0 ? offer_details.rows[0] : null,
+        offer_details:
+          offer_details.rows.length > 0 ? offer_details.rows[0] : null,
         invoice_details: result_invoices.rows[0],
         user_details: userdetailsandaddress?.user_details || null,
         user_address: userdetailsandaddress?.user_addresses?.[0] || null,

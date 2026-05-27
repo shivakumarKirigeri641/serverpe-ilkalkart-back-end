@@ -8,12 +8,16 @@ const { connectDB } = require("./database/connectDB");
 const publicCartModificationsRouter = require("./routers/publicCartModificationsRouter");
 const publicPayRouter = require("./routers/publicPayRouter");
 const sweepStaleReservations = require("./repos/jobs/sweepStaleReservations");
+const { globalLimiter } = require("./utils/rateLimiters");
 const PORT = process.env.PORT;
 const app = express();
 
 /* 🔐 MUST be before CORS & cookies */
 app.set("trust proxy", 1);
 app.use(express.json());
+
+/* 🛡️ Global rate-limit — blunt protection against scraping / looping bots */
+app.use(globalLimiter);
 
 /* ✅ CORS for cross-subdomain cookies */
 /*app.use(

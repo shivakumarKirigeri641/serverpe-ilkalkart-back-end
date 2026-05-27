@@ -16,6 +16,13 @@ const getAddresses = require("../repos/gets/getAddresses");
 const trackOrder = require("../repos/gets/trackOrder");
 const postFeedback = require("../repos/insertions/postFeedback");
 const postContactMe = require("../repos/insertions/postContactMe");
+const getPurchaseHistory = require("../repos/gets/getPurchaseHistory");
+const checkQRCode = require("../repos/checks/checkQRCode");
+const {
+  readLimiter,
+  writeLimiter,
+  sensitiveLimiter,
+} = require("../utils/rateLimiters");
 
 const FEEDBACK_PICS_DIR = path.join(
   __dirname,
@@ -49,7 +56,7 @@ const feedbackUpload = multer({
 });
 
 const publicRotuer = express.Router();
-publicRotuer.get("/query-types", async (req, res) => {
+publicRotuer.get("/query-types", readLimiter, async (req, res) => {
   try {
     const result = await getQueryTypes();
     /*let { ipAddress, visitTime, devicename, result_ipdetails } =
@@ -82,7 +89,7 @@ publicRotuer.get("/query-types", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.get("/products", async (req, res) => {
+publicRotuer.get("/products", readLimiter, async (req, res) => {
   try {
     const result = await getProducts();
     return res.status(result.statuscode).json({
@@ -102,7 +109,7 @@ publicRotuer.get("/products", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.get("/offers", async (req, res) => {
+publicRotuer.get("/offers", readLimiter, async (req, res) => {
   try {
     const result = await getOfferDetails();
     return res.status(result.statuscode).json({
@@ -122,7 +129,7 @@ publicRotuer.get("/offers", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.get("/gst-value", async (req, res) => {
+publicRotuer.get("/gst-value", readLimiter, async (req, res) => {
   try {
     const result = await getGSTValue();
     return res.status(result.statuscode).json({
@@ -142,7 +149,7 @@ publicRotuer.get("/gst-value", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.get("/states-unions", async (req, res) => {
+publicRotuer.get("/states-unions", readLimiter, async (req, res) => {
   try {
     const result = await getStatesAndUnions();
     return res.status(result.statuscode).json({
@@ -162,7 +169,7 @@ publicRotuer.get("/states-unions", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.post("/addresses", async (req, res) => {
+publicRotuer.post("/addresses", sensitiveLimiter, async (req, res) => {
   try {
     let result = validateForMobileNumber(req);
     if (false === result.successstatus) {
@@ -192,7 +199,7 @@ publicRotuer.post("/addresses", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.post("/track-my-saree", async (req, res) => {
+publicRotuer.post("/track-my-saree", sensitiveLimiter, async (req, res) => {
   try {
     let result = validateForTrackMySaree(req);
     if (false === result.successstatus) {
@@ -222,7 +229,7 @@ publicRotuer.post("/track-my-saree", async (req, res) => {
   } finally {
   }
 });
-publicRotuer.get("/feedbacks", async (req, res) => {
+publicRotuer.get("/feedbacks", readLimiter, async (req, res) => {
   try {
     const result = await getFeedbacks();
     return res.status(result.statuscode).json({
@@ -244,6 +251,7 @@ publicRotuer.get("/feedbacks", async (req, res) => {
 });
 publicRotuer.post(
   "/feedback",
+  writeLimiter,
   (req, res, next) => {
     feedbackUpload.single("pic")(req, res, (err) => {
       if (err) {
@@ -302,7 +310,7 @@ publicRotuer.post(
     }
   },
 );
-publicRotuer.post("/contact-me", async (req, res) => {
+publicRotuer.post("/contact-me", writeLimiter, async (req, res) => {
   try {
     const validation = validateForContactMe(req);
     if (false === validation.successstatus) {
@@ -324,6 +332,66 @@ publicRotuer.post("/contact-me", async (req, res) => {
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",
       successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  }
+});
+publicRotuer.post("/purchase-history", sensitiveLimiter, async (req, res) => {
+  try {
+    let result = validateForMobileNumber(req);
+    if (false === result.successstatus) {
+      return res.status(result.statuscode).json({
+        statuscode: result.statuscode,
+        powered_by: "ServerPe App Solutions",
+        successstatus: result.successstatus,
+        message: result.message,
+        data: result.data,
+      });
+    }
+    result = await getPurchaseHistory(result.data.mobile_number);
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  }
+});
+publicRotuer.post("/qrcode", sensitiveLimiter, async (req, res) => {
+  try {
+    const qrcode = String(req.body?.qrcode || "").trim();
+    if (!qrcode) {
+      return res.status(400).json({
+        statuscode: 400,
+        powered_by: "ServerPe App Solutions",
+        successstatus: false,
+        message: "qrcode is required in request body",
+        data: null,
+      });
+    }
+    const result = await checkQRCode(qrcode);
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      verified: result.verified,
+      already_scanned: result.already_scanned,
       message: result.message,
       data: result.data,
     });
