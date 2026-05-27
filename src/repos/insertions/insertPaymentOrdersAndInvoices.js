@@ -48,16 +48,22 @@ const insertPaymentOrdersAndInvoices = async (
       ],
     );
     //3. insert suborders & update quantity
+    const verifyBase = (process.env.FRONTEND_VERIFY_BASE_URL || "")
+      .replace(/\/+$/, "");
     for (let i = 0; i < result_cartitems?.data.items.length; i++) {
       const qrcode = uuidv4();
+      const qrcode_link = verifyBase
+        ? `${verifyBase}/verify/${encodeURIComponent(qrcode)}`
+        : `/verify/${encodeURIComponent(qrcode)}`;
       const result_suborders = await pool.query(
-        `insert into suborders (order_id, inventory_element_data_id, quantity, base_price, secret_qrcode) values ($1,$2,$3,$4,$5);`,
+        `insert into suborders (order_id, inventory_element_data_id, quantity, base_price, secret_qrcode, qrcode_link) values ($1,$2,$3,$4,$5,$6);`,
         [
           result_orders.rows[0].id,
           result_cartitems?.data.items[i].inventory_id,
           result_cartitems?.data.items[i].quantity,
           result_cartitems?.data.items[i].base_price,
           qrcode,
+          qrcode_link,
         ],
       );
     }

@@ -5,6 +5,7 @@ const SELECT_QR_DETAILS = `
   SELECT
     s.id                AS suborder_id,
     s.secret_qrcode,
+    s.qrcode_link,
     s.secrete_qrcode_check_status,
     s.quantity,
     s.base_price,
@@ -50,6 +51,7 @@ const SELECT_QR_DETAILS = `
 
 const buildPayload = (row) => ({
   qrcode: row.secret_qrcode,
+  qrcode_link: row.qrcode_link,
   purchased_on: row.purchased_on,
   order: {
     order_id: row.order_id,
