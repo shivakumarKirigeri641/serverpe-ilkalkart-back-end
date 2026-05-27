@@ -16,9 +16,6 @@ const app = express();
 app.set("trust proxy", 1);
 app.use(express.json());
 
-/* 🛡️ Global rate-limit — blunt protection against scraping / looping bots */
-app.use(globalLimiter);
-
 /* ✅ CORS for cross-subdomain cookies */
 /*app.use(
   cors({
@@ -34,8 +31,11 @@ app.use(
 );
 app.use(cookieParser());
 
-/* Static files */
+/* Static files — NOT rate-limited (images load freely) */
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+/* 🛡️ Global rate-limit — applies only to API routes, not to /uploads */
+app.use("/ik/customer/", globalLimiter);
 
 /* Routes */
 app.use("/ik/customer/", publicRouter);
