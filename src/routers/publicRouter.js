@@ -18,6 +18,7 @@ const postFeedback = require("../repos/insertions/postFeedback");
 const postContactMe = require("../repos/insertions/postContactMe");
 const getPurchaseHistory = require("../repos/gets/getPurchaseHistory");
 const checkQRCode = require("../repos/checks/checkQRCode");
+const getRequestDetails = require("../utils/getRequestDetails");
 const {
   readLimiter,
   writeLimiter,
@@ -385,7 +386,13 @@ publicRotuer.post("/qrcode", sensitiveLimiter, async (req, res) => {
         data: null,
       });
     }
-    const result = await checkQRCode(qrcode);
+    const reqDetails = await getRequestDetails(req).catch(() => ({}));
+    const scanCtx = {
+      ip_address: reqDetails.ipAddress || null,
+      user_agent: req.headers["user-agent"] || null,
+      device_name: reqDetails.devicename || null,
+    };
+    const result = await checkQRCode(qrcode, scanCtx);
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",

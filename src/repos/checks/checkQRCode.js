@@ -6,7 +6,7 @@ const SELECT_QR_DETAILS = `
     s.id                AS suborder_id,
     s.secret_qrcode,
     s.qrcode_link,
-    s.secrete_qrcode_check_status,
+    s.secret_qrcode_check_status,
     s.quantity,
     s.base_price,
     s.created_at        AS purchased_on,
@@ -89,13 +89,44 @@ const buildPayload = (row) => ({
   },
 });
 
-const checkQRCode = async (qrcode) => {
+const logScan = async (
+  client,
+  { suborder_id, qrcode, ip_address, user_agent, device_name, was_first_scan, scan_result },
+) => {
+  try {
+    await client.query(
+      `INSERT INTO qr_scan_logs
+         (suborder_id, secret_qrcode, ip_address, user_agent, device_name, was_first_scan, scan_result, scanned_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)`,
+      [
+        suborder_id || null,
+        qrcode || null,
+        ip_address || null,
+        user_agent || null,
+        device_name || null,
+        Boolean(was_first_scan),
+        scan_result,
+      ],
+    );
+  } catch (_) {
+    // Don't break verification if logging fails; the audit table may not exist yet.
+  }
+};
+
+const checkQRCode = async (qrcode, scanCtx = {}) => {
   try {
     await pool.query("BEGIN");
 
     const lookup = await pool.query(SELECT_QR_DETAILS, [qrcode]);
 
     if (0 === lookup.rows.length) {
+      await logScan(pool, {
+        suborder_id: null,
+        qrcode,
+        ...scanCtx,
+        was_first_scan: false,
+        scan_result: "not_found",
+      });
       await pool.query("ROLLBACK");
       return {
         statuscode: 200,
@@ -109,7 +140,14 @@ const checkQRCode = async (qrcode) => {
 
     const row = lookup.rows[0];
 
-    if (true === row.secrete_qrcode_check_status) {
+    if (true === row.secret_qrcode_check_status) {
+      await logScan(pool, {
+        suborder_id: row.suborder_id,
+        qrcode,
+        ...scanCtx,
+        was_first_scan: false,
+        scan_result: "already_scanned",
+      });
       await pool.query("ROLLBACK");
       return {
         statuscode: 200,
@@ -117,17 +155,33 @@ const checkQRCode = async (qrcode) => {
         verified: true,
         already_scanned: true,
         message:
-          "This QR code has already been verified once at delivery. If this is your first time scanning it, the label may have been misused — please contact us immediately.",
+          "Saree verification is already done. This is a genuine Ilkal Kart saree — you're simply seeing the previous verification record.",
         data: buildPayload(row),
       };
     }
 
     await pool.query(
       `UPDATE suborders
-         SET secrete_qrcode_check_status = TRUE
+         SET secret_qrcode_check_status = TRUE,
+             first_scan_ip_address = $2,
+             first_scan_user_agent = $3,
+             first_scan_device_name = $4,
+             first_scanned_at = CURRENT_TIMESTAMP
        WHERE id = $1`,
-      [row.suborder_id],
+      [
+        row.suborder_id,
+        scanCtx.ip_address || null,
+        scanCtx.user_agent || null,
+        scanCtx.device_name || null,
+      ],
     );
+    await logScan(pool, {
+      suborder_id: row.suborder_id,
+      qrcode,
+      ...scanCtx,
+      was_first_scan: true,
+      scan_result: "verified",
+    });
     await pool.query("COMMIT");
 
     return {
@@ -140,7 +194,9 @@ const checkQRCode = async (qrcode) => {
       data: buildPayload(row),
     };
   } catch (err) {
-    try { await pool.query("ROLLBACK"); } catch (_) {}
+    try {
+      await pool.query("ROLLBACK");
+    } catch (_) {}
     return {
       statuscode: 500,
       successstatus: false,
