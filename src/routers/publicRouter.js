@@ -16,9 +16,10 @@ const getAddresses = require("../repos/gets/getAddresses");
 const trackOrder = require("../repos/gets/trackOrder");
 const postFeedback = require("../repos/insertions/postFeedback");
 const postContactMe = require("../repos/insertions/postContactMe");
-const getPurchaseHistory = require("../repos/gets/getPurchaseHistory");
 const checkQRCode = require("../repos/checks/checkQRCode");
 const getRequestDetails = require("../utils/getRequestDetails");
+const sendOtpForPurchaseHistory = require("../repos/insertions/sendOtpForPurchaseHistory");
+const verifyOtpForPurchaseHistory = require("../repos/insertions/verifyOtpForPurchaseHistory");
 const {
   readLimiter,
   writeLimiter,
@@ -345,10 +346,22 @@ publicRotuer.post("/contact-me", writeLimiter, async (req, res) => {
     });
   }
 });
-publicRotuer.post("/purchase-history", sensitiveLimiter, async (req, res) => {
-  try {
-    let result = validateForMobileNumber(req);
-    if (false === result.successstatus) {
+publicRotuer.post(
+  "/purchase-history/send-otp",
+  sensitiveLimiter,
+  async (req, res) => {
+    try {
+      let result = validateForMobileNumber(req);
+      if (false === result.successstatus) {
+        return res.status(result.statuscode).json({
+          statuscode: result.statuscode,
+          powered_by: "ServerPe App Solutions",
+          successstatus: result.successstatus,
+          message: result.message,
+          data: result.data,
+        });
+      }
+      result = await sendOtpForPurchaseHistory(result.data.mobile_number);
       return res.status(result.statuscode).json({
         statuscode: result.statuscode,
         powered_by: "ServerPe App Solutions",
@@ -356,24 +369,63 @@ publicRotuer.post("/purchase-history", sensitiveLimiter, async (req, res) => {
         message: result.message,
         data: result.data,
       });
+    } catch (err) {
+      return res.status(500).json({
+        statuscode: 500,
+        powered_by: "ServerPe App Solutions",
+        successstatus: false,
+        message: `Internal server error. Error:${err.message}`,
+      });
     }
-    result = await getPurchaseHistory(result.data.mobile_number);
-    return res.status(result.statuscode).json({
-      statuscode: result.statuscode,
-      powered_by: "ServerPe App Solutions",
-      successstatus: result.successstatus,
-      message: result.message,
-      data: result.data,
-    });
-  } catch (err) {
-    return res.status(500).json({
-      statuscode: 500,
-      powered_by: "ServerPe App Solutions",
-      successstatus: false,
-      message: `Internal server error. Error:${err.message}`,
-    });
-  }
-});
+  },
+);
+
+publicRotuer.post(
+  "/purchase-history/verify-otp",
+  sensitiveLimiter,
+  async (req, res) => {
+    try {
+      const mobileResult = validateForMobileNumber(req);
+      if (false === mobileResult.successstatus) {
+        return res.status(mobileResult.statuscode).json({
+          statuscode: mobileResult.statuscode,
+          powered_by: "ServerPe App Solutions",
+          successstatus: mobileResult.successstatus,
+          message: mobileResult.message,
+          data: mobileResult.data,
+        });
+      }
+      const otp = String(req.body?.otp || "").trim();
+      if (!/^\d{4}$/.test(otp)) {
+        return res.status(400).json({
+          statuscode: 400,
+          powered_by: "ServerPe App Solutions",
+          successstatus: false,
+          message: "Please enter the 4-digit OTP",
+          data: null,
+        });
+      }
+      const result = await verifyOtpForPurchaseHistory(
+        mobileResult.data.mobile_number,
+        otp,
+      );
+      return res.status(result.statuscode).json({
+        statuscode: result.statuscode,
+        powered_by: "ServerPe App Solutions",
+        successstatus: result.successstatus,
+        message: result.message,
+        data: result.data,
+      });
+    } catch (err) {
+      return res.status(500).json({
+        statuscode: 500,
+        powered_by: "ServerPe App Solutions",
+        successstatus: false,
+        message: `Internal server error. Error:${err.message}`,
+      });
+    }
+  },
+);
 publicRotuer.post("/qrcode", sensitiveLimiter, async (req, res) => {
   try {
     const qrcode = String(req.body?.qrcode || "").trim();

@@ -31,10 +31,10 @@ const validateForVerifyOtpLogin = (req) => {
       return err("Invalid mobile number format");
     }
 
-    // OTP — 4 to 6 digits.
+    // OTP — strictly 4 digits.
     const cleanedOtp = String(otp).trim();
-    if (!/^\d{4,6}$/.test(cleanedOtp)) {
-      return err("Invalid OTP format");
+    if (!/^\d{4}$/.test(cleanedOtp)) {
+      return err("OTP must be 4 digits");
     }
 
     // User name — required, 2-80 chars, letters/spaces/dots/apostrophes/hyphens.
