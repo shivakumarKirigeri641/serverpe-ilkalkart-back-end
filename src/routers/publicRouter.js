@@ -20,6 +20,8 @@ const checkQRCode = require("../repos/checks/checkQRCode");
 const getRequestDetails = require("../utils/getRequestDetails");
 const sendOtpForPurchaseHistory = require("../repos/insertions/sendOtpForPurchaseHistory");
 const verifyOtpForPurchaseHistory = require("../repos/insertions/verifyOtpForPurchaseHistory");
+const { sendMail } = require("../comms/sendMail");
+const userVisitLandingPageAlertTemplate = require("../comms/userVisitLandingPageAlertTemplate");
 const {
   readLimiter,
   writeLimiter,
@@ -61,7 +63,7 @@ const publicRotuer = express.Router();
 publicRotuer.get("/query-types", readLimiter, async (req, res) => {
   try {
     const result = await getQueryTypes();
-    /*let { ipAddress, visitTime, devicename, result_ipdetails } =
+    let { ipAddress, visitTime, devicename, result_ipdetails } =
       await getRequestDetails(req);
     await sendMail({
       to: process.env.ADMINMAIL,
@@ -73,7 +75,7 @@ publicRotuer.get("/query-types", readLimiter, async (req, res) => {
         result_ipdetails,
       }),
       text: "Alert! User visited landing page",
-    });*/
+    });
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",
