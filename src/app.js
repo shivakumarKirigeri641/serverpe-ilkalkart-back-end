@@ -23,9 +23,19 @@ app.use(express.json());
     credentials: true,
   }),
 );*/
+const allowedOrigins = [
+  "https://ilkalkart.in",
+  "https://www.ilkalkart.in",
+  "http://localhost:5173", // local dev
+];
+
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: function (origin, callback) {
+      // allow same-origin / curl / server-to-server (no Origin header)
+      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
   }),
 );
