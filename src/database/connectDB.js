@@ -7,16 +7,10 @@ types.setTypeParser(1082, (val) => val);
 // Global pools (created only once)
 let pool = null;
 
-// 🔥 Common function to test pool connection once
-function testConnection(pool, label) {
-  pool
-    .query("SELECT NOW()")
-    .then(() => console.log(`✅ PostgreSQL connected: ${label}`))
-    .catch((err) => console.error(`❌ Connection failed for ${label}`, err));
-}
-
 /* ============================================
    MAIN DB (PGDATABASEMAIN)
+   connectDB() stays SYNCHRONOUS: db.js does `const pool = connectDB()`
+   at import time and every repo depends on getting a real pool back.
 ============================================ */
 const connectDB = () => {
   if (!pool) {
@@ -28,13 +22,23 @@ const connectDB = () => {
       port: process.env.PGPORT,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 2000,
+      // 2s was too aggressive: a cold/slow first handshake timed out, so the
+      // very first request failed and only worked after a refresh.
+      connectionTimeoutMillis: 10000,
       keepAlive: true,
     });
-
-    testConnection(pool, "serverpeilkalkart DB");
   }
   return pool;
 };
 
-module.exports = { connectDB };
+// 🔥 Warm the pool and verify connectivity. app.js awaits this BEFORE
+// listening, so the cold-connection cost is paid at boot — not on the
+// user's first request (which is why it used to fail until a refresh).
+const verifyConnection = async () => {
+  const p = connectDB();
+  await p.query("SELECT NOW()");
+  console.log("✅ PostgreSQL connected: serverpeilkalkart DB");
+  return p;
+};
+
+module.exports = { connectDB, verifyConnection };
