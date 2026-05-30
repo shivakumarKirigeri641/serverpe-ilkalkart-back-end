@@ -13,6 +13,7 @@ const getOfferDetails = require("../repos/gets/getOfferDetails");
 const getGSTValue = require("../repos/gets/getGSTValue");
 const getStatesAndUnions = require("../repos/gets/getStatesAndUnions");
 const getAddresses = require("../repos/gets/getAddresses");
+const { getPolicyList, getPolicyBySlug } = require("../repos/gets/getPolicies");
 const trackOrder = require("../repos/gets/trackOrder");
 const postFeedback = require("../repos/insertions/postFeedback");
 const postContactMe = require("../repos/insertions/postContactMe");
@@ -156,6 +157,46 @@ publicRotuer.get("/gst-value", readLimiter, async (req, res) => {
 publicRotuer.get("/states-unions", readLimiter, async (req, res) => {
   try {
     const result = await getStatesAndUnions();
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  } finally {
+  }
+});
+publicRotuer.get("/policies", readLimiter, async (req, res) => {
+  try {
+    const result = await getPolicyList();
+    return res.status(result.statuscode).json({
+      statuscode: result.statuscode,
+      powered_by: "ServerPe App Solutions",
+      successstatus: result.successstatus,
+      message: result.message,
+      data: result.data,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      statuscode: 500,
+      powered_by: "ServerPe App Solutions",
+      successstatus: false,
+      message: `Internal server error. Error:${err.message}`,
+    });
+  } finally {
+  }
+});
+publicRotuer.get("/policies/:slug", readLimiter, async (req, res) => {
+  try {
+    const result = await getPolicyBySlug(req.params.slug);
     return res.status(result.statuscode).json({
       statuscode: result.statuscode,
       powered_by: "ServerPe App Solutions",
